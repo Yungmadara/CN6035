@@ -57,6 +57,7 @@ export default function ReservationScreen({ route, navigation }) {
         seat_ids: selectedSeats.map(s => s.seat_id),
       });
       const { reference, count, totalPrice } = res.data;
+      setSelectedSeats([]);
       Alert.alert(
         'Επιτυχία! 🎉',
         `Κρατήθηκαν ${count} θέσεις\nΚωδικός: ${reference}\nΣύνολο: ${formatEuro(totalPrice)}`,
@@ -82,16 +83,17 @@ export default function ReservationScreen({ route, navigation }) {
   };
 
   const toggleSeat = (seat) => {
-    const isSelected = selectedSeats.some(s => s.seat_id === seat.seat_id);
-    if (isSelected) {
-      setSelectedSeats(selectedSeats.filter(s => s.seat_id !== seat.seat_id));
-    } else {
-      if (selectedSeats.length >= MAX_SEATS) {
-        Alert.alert('Όριο θέσεων', `Μπορείτε να επιλέξετε έως ${MAX_SEATS} θέσεις ανά κράτηση`);
-        return;
+    setSelectedSeats(prev => {
+      const isSelected = prev.some(s => s.seat_id === seat.seat_id);
+      if (isSelected) {
+        return prev.filter(s => s.seat_id !== seat.seat_id);
       }
-      setSelectedSeats([...selectedSeats, seat]);
-    }
+      if (prev.length >= MAX_SEATS) {
+        Alert.alert('Όριο θέσεων', `Μπορείτε να επιλέξετε έως ${MAX_SEATS} θέσεις ανά κράτηση`);
+        return prev;
+      }
+      return [...prev, seat];
+    });
   };
 
   const renderSeat = ({ item }) => {
