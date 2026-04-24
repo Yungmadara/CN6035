@@ -48,6 +48,7 @@ export default function ProfileScreen({ navigation }) {
       const key = r.reservation_reference || `single-${r.reservation_id}`;
       if (!groups[key]) {
         groups[key] = {
+          key,
           reference: r.reservation_reference,
           show_title: r.show_title,
           theatre_name: r.theatre_name,
@@ -154,7 +155,6 @@ export default function ProfileScreen({ navigation }) {
 
   const renderBooking = ({ item }) => {
     const isPast = !isFuture(item.date);
-    const anyCancelled = item.seats.some(s => s.status === 'cancelled');
     const allCancelled = item.seats.every(s => s.status === 'cancelled');
     const totalPrice = item.seats
       .filter(s => s.status === 'confirmed')
@@ -283,7 +283,7 @@ export default function ProfileScreen({ navigation }) {
       ) : (
         <FlatList
           data={displayedBookings}
-          keyExtractor={(item, index) => item.reference || `fallback-${index}`}
+          keyExtractor={(item) => item.key}
           renderItem={renderBooking}
           contentContainerStyle={{ paddingBottom: 30 }}
           refreshControl={
