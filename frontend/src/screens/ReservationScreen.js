@@ -4,11 +4,13 @@ import {
   ActivityIndicator, Alert, ScrollView, FlatList
 } from 'react-native';
 import api from '../services/api';
+import { seatPrice, formatEuro } from '../utils/pricing';
 
 export default function ReservationScreen({ route, navigation }) {
   const { showtimeId, showtime, showTitle } = route.params;
   const [seats, setSeats] = useState([]);
-  const [selectedSeat, setSelectedSeat] = useState(null);
+  const [selectedSeats, setSelectedSeats] = useState([]);
+  const MAX_SEATS = 10;
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState(false);
 
@@ -27,15 +29,19 @@ export default function ReservationScreen({ route, navigation }) {
     }
   };
 
-  const handleConfirm = async () => {
-    if (!selectedSeat) {
-      Alert.alert('Επιλέξτε θέση', 'Παρακαλώ επιλέξτε μια θέση για να συνεχίσετε');
+  const handleConfirm = () => {
+    if (selectedSeats.length === 0) {
+      Alert.alert('Επιλέξτε θέση', 'Παρακαλώ επιλέξτε τουλάχιστον μία θέση');
       return;
     }
-
+    const basePrice = parseFloat(showtime.price);
+    const totalPrice = selectedSeats.reduce(
+      (sum, s) => sum + seatPrice(basePrice, s.category), 0
+    );
+    const seatList = selectedSeats.map(s => `${s.seat_number} (${s.category})`).join(', ');
     Alert.alert(
       'Επιβεβαίωση Κράτησης',
-      `Θέλετε να κλείσετε τη θέση ${selectedSeat.seat_number} (${selectedSeat.category}) για €${parseFloat(showtime.price).toFixed(2)};`,
+      `${selectedSeats.length} θέσεις: ${seatList}\n\nΣύνολο: ${formatEuro(totalPrice)}`,
       [
         { text: 'Ακύρωση', style: 'cancel' },
         { text: 'Επιβεβαίωση', onPress: confirmBooking }
@@ -46,12 +52,21 @@ export default function ReservationScreen({ route, navigation }) {
   const confirmBooking = async () => {
     setBooking(true);
     try {
-      await api.post('/reservations', { showtime_id: showtimeId, seat_id: selectedSeat.seat_id });
-      Alert.alert('Επιτυχία! 🎉', 'Η κράτησή σας καταχωρήθηκε!', [
-        { text: 'OK', onPress: () => navigation.navigate('Profile') }
-      ]);
+      const res = await api.post('/reservations', {
+        showtime_id: showtimeId,
+        seat_ids: selectedSeats.map(s => s.seat_id),
+      });
+      const { reference, count, totalPrice } = res.data;
+      Alert.alert(
+        'Επιτυχία! 🎉',
+        `Κρατήθηκαν ${count} θέσεις\nΚωδικός: ${reference}\nΣύνολο: ${formatEuro(totalPrice)}`,
+        [{ text: 'OK', onPress: () => navigation.navigate('Profile') }]
+      );
     } catch (err) {
-      Alert.alert('Σφάλμα', err.response?.data?.error || err.response?.data?.message || err.message || 'Αποτυχία κράτησης');
+      Alert.alert(
+        'Σφάλμα',
+        err.response?.data?.error || err.response?.data?.message || err.message || 'Αποτυχία κράτησης'
+      );
     } finally {
       setBooking(false);
     }
@@ -66,22 +81,38 @@ export default function ReservationScreen({ route, navigation }) {
     }
   };
 
-  const renderSeat = ({ item }) => (
-    <TouchableOpacity
-      style={[
-        styles.seat,
-        !item.is_available && styles.seatTaken,
-        selectedSeat?.seat_id === item.seat_id && styles.seatSelected,
-        { borderColor: getCategoryColor(item.category) }
-      ]}
-      onPress={() => item.is_available && setSelectedSeat(item)}
-      disabled={!item.is_available}
-    >
-      <Text style={[styles.seatText, !item.is_available && styles.seatTextTaken]}>
-        {item.seat_number}
-      </Text>
-    </TouchableOpacity>
-  );
+  const toggleSeat = (seat) => {
+    const isSelected = selectedSeats.some(s => s.seat_id === seat.seat_id);
+    if (isSelected) {
+      setSelectedSeats(selectedSeats.filter(s => s.seat_id !== seat.seat_id));
+    } else {
+      if (selectedSeats.length >= MAX_SEATS) {
+        Alert.alert('Όριο θέσεων', `Μπορείτε να επιλέξετε έως ${MAX_SEATS} θέσεις ανά κράτηση`);
+        return;
+      }
+      setSelectedSeats([...selectedSeats, seat]);
+    }
+  };
+
+  const renderSeat = ({ item }) => {
+    const isSelected = selectedSeats.some(s => s.seat_id === item.seat_id);
+    return (
+      <TouchableOpacity
+        style={[
+          styles.seat,
+          !item.is_available && styles.seatTaken,
+          isSelected && styles.seatSelected,
+          { borderColor: getCategoryColor(item.category) }
+        ]}
+        onPress={() => item.is_available && toggleSeat(item)}
+        disabled={!item.is_available}
+      >
+        <Text style={[styles.seatText, !item.is_available && styles.seatTextTaken]}>
+          {item.seat_number}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
 
   if (loading) {
     return (
@@ -119,32 +150,78 @@ export default function ReservationScreen({ route, navigation }) {
         </View>
       </View>
 
-      <Text style={styles.stageText}>— ΣΚΗΝΗ —</Text>
+      <View style={styles.stage}>
+        <Text style={styles.stageText}>— ΣΚΗΝΗ —</Text>
+      </View>
 
+      <Text style={styles.sectionHeader}>ΠΛΑΤΕΙΑ VIP</Text>
       <FlatList
-        data={seats}
+        data={seats.filter(s => s.category === 'VIP')}
         keyExtractor={(item) => item.seat_id.toString()}
         renderItem={renderSeat}
-        numColumns={5}
+        numColumns={12}
         scrollEnabled={false}
         contentContainerStyle={styles.seatGrid}
       />
 
-      {selectedSeat && (
-        <View style={styles.selectedInfo}>
-          <Text style={styles.selectedText}>
-            Επιλεγμένη: {selectedSeat.seat_number} ({selectedSeat.category})
-          </Text>
-        </View>
-      )}
+      <Text style={styles.sectionHeader}>ΠΛΑΤΕΙΑ STANDARD</Text>
+      <FlatList
+        data={seats.filter(s => s.category === 'Standard')}
+        keyExtractor={(item) => item.seat_id.toString()}
+        renderItem={renderSeat}
+        numColumns={12}
+        scrollEnabled={false}
+        contentContainerStyle={styles.seatGrid}
+      />
+
+      <Text style={styles.sectionHeader}>ΕΞΩΣΤΗΣ ECONOMY</Text>
+      <FlatList
+        data={seats.filter(s => s.category === 'Economy')}
+        keyExtractor={(item) => item.seat_id.toString()}
+        renderItem={renderSeat}
+        numColumns={12}
+        scrollEnabled={false}
+        contentContainerStyle={styles.seatGrid}
+      />
+
+      {selectedSeats.length > 0 && (() => {
+        const basePrice = parseFloat(showtime.price);
+        const total = selectedSeats.reduce(
+          (sum, s) => sum + seatPrice(basePrice, s.category), 0
+        );
+        return (
+          <View style={styles.selectedInfo}>
+            <Text style={styles.selectedHeader}>
+              Επιλογή ({selectedSeats.length}/{MAX_SEATS})
+            </Text>
+            {['VIP', 'Standard', 'Economy'].map(cat => {
+              const seatsInCat = selectedSeats.filter(s => s.category === cat);
+              if (seatsInCat.length === 0) return null;
+              const unit = seatPrice(basePrice, cat);
+              const line = seatsInCat.length * unit;
+              return (
+                <Text key={cat} style={styles.breakdownLine}>
+                  {seatsInCat.length}× {cat} ({formatEuro(unit)}) = {formatEuro(line)}
+                </Text>
+              );
+            })}
+            <View style={styles.divider} />
+            <Text style={styles.totalLine}>Σύνολο: {formatEuro(total)}</Text>
+          </View>
+        );
+      })()}
 
       <TouchableOpacity
-        style={[styles.confirmBtn, !selectedSeat && styles.confirmBtnDisabled]}
+        style={[styles.confirmBtn, selectedSeats.length === 0 && styles.confirmBtnDisabled]}
         onPress={handleConfirm}
-        disabled={!selectedSeat || booking}
+        disabled={selectedSeats.length === 0 || booking}
       >
         <Text style={styles.confirmBtnText}>
-          {booking ? 'Επεξεργασία...' : 'Επιβεβαίωση Κράτησης'}
+          {booking
+            ? 'Επεξεργασία...'
+            : selectedSeats.length === 0
+              ? 'Επιλέξτε θέσεις'
+              : `Κράτηση ${selectedSeats.length} θέσεων`}
         </Text>
       </TouchableOpacity>
     </ScrollView>
@@ -163,22 +240,35 @@ const styles = StyleSheet.create({
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   legendDot: { width: 12, height: 12, borderRadius: 6 },
   legendText: { color: '#ccc', fontSize: 12 },
-  stageText: { color: '#e0c068', textAlign: 'center', marginBottom: 16, fontSize: 14, letterSpacing: 4 },
-  seatGrid: { alignItems: 'center', paddingBottom: 20 },
+  stage: {
+    backgroundColor: '#0f3460', borderRadius: 4, paddingVertical: 6,
+    marginBottom: 16,
+    borderTopWidth: 3, borderTopColor: '#e0c068',
+  },
+  stageText: { color: '#e0c068', textAlign: 'center', fontSize: 13, letterSpacing: 4, fontWeight: 'bold' },
+  sectionHeader: {
+    color: '#e0c068', fontSize: 11, fontWeight: 'bold',
+    letterSpacing: 2, marginTop: 8, marginBottom: 6, textAlign: 'center',
+  },
+  seatGrid: { alignItems: 'center', paddingBottom: 4 },
   seat: {
-    width: 52, height: 40, margin: 4, borderRadius: 6,
+    width: 22, height: 22, margin: 1.5, borderRadius: 3,
     justifyContent: 'center', alignItems: 'center',
-    backgroundColor: '#16213e', borderWidth: 2,
+    backgroundColor: '#16213e', borderWidth: 1.5,
   },
   seatTaken: { backgroundColor: '#333', borderColor: '#555' },
-  seatSelected: { backgroundColor: '#e0c068' },
-  seatText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
+  seatSelected: { backgroundColor: '#e0c068', borderColor: '#e0c068' },
+  seatText: { color: '#fff', fontSize: 7, fontWeight: 'bold' },
   seatTextTaken: { color: '#555' },
   selectedInfo: {
     backgroundColor: '#16213e', borderRadius: 8,
-    padding: 12, marginBottom: 16, alignItems: 'center',
+    padding: 12, marginBottom: 16, alignItems: 'stretch',
   },
   selectedText: { color: '#e0c068', fontSize: 16 },
+  selectedHeader: { color: '#e0c068', fontSize: 14, fontWeight: 'bold', marginBottom: 6 },
+  breakdownLine: { color: '#fff', fontSize: 13, marginBottom: 3 },
+  divider: { height: 1, backgroundColor: '#0f3460', marginVertical: 6 },
+  totalLine: { color: '#e0c068', fontSize: 16, fontWeight: 'bold', marginTop: 4 },
   confirmBtn: {
     backgroundColor: '#e0c068', borderRadius: 10,
     padding: 16, alignItems: 'center', marginBottom: 30,
