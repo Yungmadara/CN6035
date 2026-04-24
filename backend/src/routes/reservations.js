@@ -9,16 +9,18 @@ router.get(['/my', '/reservations'], authMiddleware, async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT r.reservation_id, r.status, r.created_at,
+              r.reservation_reference,
+              r.showtime_id,
               s.title AS show_title, t.name AS theatre_name,
-              st.date, st.time, st.room, st.price,
-              se.seat_number, se.category
+              st.date, st.time, st.room, st.price AS base_price, st.price AS price,
+              se.seat_id, se.seat_number, se.category
        FROM reservations r
        JOIN showtimes st ON r.showtime_id = st.showtime_id
        JOIN shows s ON st.show_id = s.show_id
        JOIN theatres t ON s.theatre_id = t.theatre_id
        JOIN seats se ON r.seat_id = se.seat_id
        WHERE r.user_id = ?
-       ORDER BY st.date DESC`,
+       ORDER BY st.date DESC, r.reservation_reference`,
       [req.user.userId]
     );
     res.json(rows);
