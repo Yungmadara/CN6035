@@ -55,9 +55,11 @@ CREATE TABLE reservations (
   user_id        INT NOT NULL,
   showtime_id    INT NOT NULL,
   seat_id        INT NOT NULL,
+  reservation_reference VARCHAR(20),
   status         ENUM('confirmed','cancelled') DEFAULT 'confirmed',
   created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
   FOREIGN KEY (showtime_id) REFERENCES showtimes(showtime_id) ON DELETE CASCADE,
-  FOREIGN KEY (seat_id) REFERENCES seats(seat_id) ON DELETE CASCADE
+  FOREIGN KEY (seat_id) REFERENCES seats(seat_id) ON DELETE CASCADE,
+  INDEX idx_reservation_reference (reservation_reference)
 );
