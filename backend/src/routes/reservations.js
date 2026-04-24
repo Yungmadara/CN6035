@@ -41,6 +41,13 @@ router.post('/', authMiddleware, async (req, res) => {
   if (seat_ids.length > 10) {
     return res.status(400).json({ message: 'Maximum 10 seats per reservation' });
   }
+  if (!seat_ids.every(id => Number.isInteger(id) && id > 0)) {
+    return res.status(400).json({ message: 'seat_ids must be positive integers' });
+  }
+  const uniqueIds = [...new Set(seat_ids)];
+  if (uniqueIds.length !== seat_ids.length) {
+    return res.status(400).json({ message: 'Duplicate seat_ids in request' });
+  }
 
   const conn = await pool.getConnection();
   try {
