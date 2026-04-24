@@ -15,8 +15,9 @@ function generateReference() {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
-  const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
+  const rand = require('crypto').randomBytes(3).toString('hex').toUpperCase();
   return `BK-${y}${m}${day}-${rand}`;
 }
 
+Object.freeze(CATEGORY_MULTIPLIERS);
 module.exports = { CATEGORY_MULTIPLIERS, seatPrice, generateReference };
