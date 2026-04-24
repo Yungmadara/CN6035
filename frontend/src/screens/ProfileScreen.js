@@ -7,6 +7,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { seatPrice, formatEuro } from '../utils/pricing';
 
 export default function ProfileScreen({ navigation }) {
   const [reservations, setReservations] = useState([]);
@@ -40,14 +41,53 @@ export default function ProfileScreen({ navigation }) {
 
   const isFuture = (dateStr) => new Date(dateStr) > new Date();
 
-  const upcomingReservations = reservations.filter(
-    r => r.status === 'confirmed' && isFuture(r.date)
-  );
-  const pastReservations = reservations.filter(
-    r => r.status === 'cancelled' || !isFuture(r.date)
-  );
+  // Group reservations by reference (null ref → synthetic group per reservation)
+  const groupBookings = (reservationList) => {
+    const groups = {};
+    for (const r of reservationList) {
+      const key = r.reservation_reference || `single-${r.reservation_id}`;
+      if (!groups[key]) {
+        groups[key] = {
+          reference: r.reservation_reference,
+          show_title: r.show_title,
+          theatre_name: r.theatre_name,
+          date: r.date,
+          time: r.time,
+          room: r.room,
+          base_price: parseFloat(r.base_price || r.price || 0),
+          showtime_id: r.showtime_id,
+          status: r.status,
+          seats: [],
+        };
+      }
+      groups[key].seats.push({
+        reservation_id: r.reservation_id,
+        seat_id: r.seat_id,
+        seat_number: r.seat_number,
+        category: r.category,
+        status: r.status,
+      });
+    }
+    return Object.values(groups);
+  };
 
-  const displayedReservations = activeTab === 'upcoming' ? upcomingReservations : pastReservations;
+  const confirmedReservations = reservations.filter(r => r.status === 'confirmed');
+  const cancelledReservations = reservations.filter(r => r.status === 'cancelled');
+
+  const upcomingBookings = groupBookings(confirmedReservations.filter(r => isFuture(r.date)));
+  const pastBookings = groupBookings([
+    ...cancelledReservations,
+    ...confirmedReservations.filter(r => !isFuture(r.date)),
+  ]);
+
+  // Keep legacy names for stats row (count individual seat reservations, not bookings)
+  const upcomingReservations = confirmedReservations.filter(r => isFuture(r.date));
+  const pastReservations = [
+    ...cancelledReservations,
+    ...confirmedReservations.filter(r => !isFuture(r.date)),
+  ];
+
+  const displayedBookings = activeTab === 'upcoming' ? upcomingBookings : pastBookings;
 
   const handleCancel = (reservationId) => {
     Alert.alert(
@@ -110,31 +150,72 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
-  const renderReservation = ({ item }) => {
-    const isPast = item.status === 'cancelled' || !isFuture(item.date);
+  const renderBooking = ({ item }) => {
+    const isPast = !isFuture(item.date);
+    const anyCancelled = item.seats.some(s => s.status === 'cancelled');
+    const allCancelled = item.seats.every(s => s.status === 'cancelled');
+    const totalPrice = item.seats
+      .filter(s => s.status === 'confirmed')
+      .reduce((sum, s) => sum + seatPrice(item.base_price, s.category), 0);
+
     return (
-      <View style={[styles.card, isPast && styles.pastCard]}>
+      <View style={[styles.card, (isPast || allCancelled) && styles.pastCard]}>
         <View style={styles.cardHeader}>
-          <Text style={styles.showTitle}>{item.show_title}</Text>
-          <Text style={[styles.status, item.status === 'cancelled' ? styles.cancelled : styles.confirmed]}>
-            {item.status === 'confirmed' ? '✅ Επιβεβαιωμένη' : '❌ Ακυρωμένη'}
+          <View style={{ flex: 1 }}>
+            <Text style={styles.showTitle}>{item.show_title}</Text>
+            {item.reference && (
+              <Text style={styles.reference}>🎫 {item.reference}</Text>
+            )}
+          </View>
+          <Text style={[
+            styles.status,
+            allCancelled ? styles.cancelled : styles.confirmed,
+          ]}>
+            {allCancelled ? '❌ Ακυρωμένη' : '✅ Επιβεβαιωμένη'}
           </Text>
         </View>
         <Text style={styles.detail}>🏛 {item.theatre_name}</Text>
         <Text style={styles.detail}>📅 {new Date(item.date).toLocaleDateString('el-GR')}  🕐 {item.time.slice(0, 5)}</Text>
         <Text style={styles.detail}>🏟 {item.room}</Text>
-        <Text style={styles.detail}>💺 Θέση: {item.seat_number} ({item.category})</Text>
-        <Text style={styles.detail}>💰 €{parseFloat(item.price).toFixed(2)}</Text>
 
-        {item.status === 'confirmed' && isFuture(item.date) && (
-          <View style={styles.actionButtons}>
-            <TouchableOpacity style={styles.changeSeatBtn} onPress={() => openChangeSeat(item)}>
-              <Text style={styles.changeSeatBtnText}>Αλλαγή Θέσης</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.cancelBtn} onPress={() => handleCancel(item.reservation_id)}>
-              <Text style={styles.cancelBtnText}>Ακύρωση</Text>
-            </TouchableOpacity>
-          </View>
+        <View style={styles.seatsContainer}>
+          <Text style={styles.seatsHeader}>Θέσεις ({item.seats.length}):</Text>
+          {item.seats.map((s) => {
+            const price = seatPrice(item.base_price, s.category);
+            const isCancelled = s.status === 'cancelled';
+            return (
+              <View key={s.reservation_id} style={styles.seatRow}>
+                <Text style={[styles.seatInfo, isCancelled && styles.cancelledSeat]}>
+                  💺 {s.seat_number} ({s.category}) — {formatEuro(price)}
+                  {isCancelled ? ' [ακυρώθηκε]' : ''}
+                </Text>
+                {!isPast && !isCancelled && (
+                  <View style={styles.seatActions}>
+                    <TouchableOpacity
+                      style={styles.smallBtn}
+                      onPress={() => openChangeSeat({
+                        reservation_id: s.reservation_id,
+                        showtime_id: item.showtime_id,
+                        show_title: item.show_title,
+                      })}
+                    >
+                      <Text style={styles.smallBtnText}>Αλλαγή</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.smallBtn, styles.smallBtnDanger]}
+                      onPress={() => handleCancel(s.reservation_id)}
+                    >
+                      <Text style={[styles.smallBtnText, { color: '#ff6b6b' }]}>Ακύρωση</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            );
+          })}
+        </View>
+
+        {totalPrice > 0 && (
+          <Text style={styles.bookingTotal}>Σύνολο: {formatEuro(totalPrice)}</Text>
         )}
       </View>
     );
@@ -199,9 +280,9 @@ export default function ProfileScreen({ navigation }) {
         <ActivityIndicator size="large" color="#e0c068" style={{ marginTop: 40 }} />
       ) : (
         <FlatList
-          data={displayedReservations}
-          keyExtractor={(item) => item.reservation_id.toString()}
-          renderItem={renderReservation}
+          data={displayedBookings}
+          keyExtractor={(item, index) => item.reference || `fallback-${index}`}
+          renderItem={renderBooking}
           contentContainerStyle={{ paddingBottom: 30 }}
           refreshControl={
             <RefreshControl
@@ -358,4 +439,22 @@ const styles = StyleSheet.create({
   modalCancelText: { color: '#aaa', fontWeight: 'bold' },
   modalConfirmBtn: { flex: 1, backgroundColor: '#e0c068', borderRadius: 8, padding: 12, alignItems: 'center' },
   modalConfirmText: { color: '#1a1a2e', fontWeight: 'bold' },
+  reference: { color: '#e0c068', fontSize: 12, fontWeight: '600', marginTop: 2 },
+  seatsContainer: { marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#0f3460' },
+  seatsHeader: { color: '#aaa', fontSize: 12, fontWeight: 'bold', marginBottom: 6 },
+  seatRow: { marginBottom: 8 },
+  seatInfo: { color: '#fff', fontSize: 13, marginBottom: 4 },
+  cancelledSeat: { color: '#666', textDecorationLine: 'line-through' },
+  seatActions: { flexDirection: 'row', gap: 6 },
+  smallBtn: {
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 5,
+    backgroundColor: '#0f3460', borderWidth: 1, borderColor: '#e0c068',
+  },
+  smallBtnDanger: { borderColor: '#ff6b6b33' },
+  smallBtnText: { color: '#e0c068', fontSize: 11, fontWeight: 'bold' },
+  bookingTotal: {
+    color: '#e0c068', fontSize: 15, fontWeight: 'bold',
+    textAlign: 'right', marginTop: 8,
+    paddingTop: 8, borderTopWidth: 1, borderTopColor: '#0f3460',
+  },
 });
