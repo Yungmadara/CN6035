@@ -82,14 +82,6 @@ export default function ProfileScreen({ navigation }) {
     b => !isFuture(b.date) || b.seats.every(s => s.status === 'cancelled')
   );
 
-  // Keep legacy names for stats row (count individual seat reservations, not bookings)
-  const upcomingReservations = reservations.filter(
-    r => r.status === 'confirmed' && isFuture(r.date)
-  );
-  const pastReservations = reservations.filter(
-    r => r.status === 'cancelled' || !isFuture(r.date)
-  );
-
   const displayedBookings = activeTab === 'upcoming' ? upcomingBookings : pastBookings;
 
   const handleCancel = (reservationId) => {
@@ -242,17 +234,17 @@ export default function ProfileScreen({ navigation }) {
       {/* Stats Row */}
       <View style={styles.statsRow}>
         <View style={styles.statBox}>
-          <Text style={styles.statNumber}>{upcomingReservations.length}</Text>
+          <Text style={styles.statNumber}>{upcomingBookings.length}</Text>
           <Text style={styles.statLabel}>Επερχόμενες</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statBox}>
-          <Text style={styles.statNumber}>{pastReservations.length}</Text>
+          <Text style={styles.statNumber}>{pastBookings.length}</Text>
           <Text style={styles.statLabel}>Παλαιότερες</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statBox}>
-          <Text style={styles.statNumber}>{reservations.length}</Text>
+          <Text style={styles.statNumber}>{allBookings.length}</Text>
           <Text style={styles.statLabel}>Σύνολο</Text>
         </View>
       </View>
@@ -264,7 +256,7 @@ export default function ProfileScreen({ navigation }) {
           onPress={() => setActiveTab('upcoming')}
         >
           <Text style={[styles.tabText, activeTab === 'upcoming' && styles.activeTabText]}>
-            Επερχόμενες ({upcomingReservations.length})
+            Επερχόμενες ({upcomingBookings.length})
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -272,7 +264,7 @@ export default function ProfileScreen({ navigation }) {
           onPress={() => setActiveTab('past')}
         >
           <Text style={[styles.tabText, activeTab === 'past' && styles.activeTabText]}>
-            Ιστορικό ({pastReservations.length})
+            Ιστορικό ({pastBookings.length})
           </Text>
         </TouchableOpacity>
       </View>
