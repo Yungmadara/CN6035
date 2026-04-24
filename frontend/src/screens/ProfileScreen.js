@@ -71,21 +71,23 @@ export default function ProfileScreen({ navigation }) {
     return Object.values(groups);
   };
 
-  const confirmedReservations = reservations.filter(r => r.status === 'confirmed');
-  const cancelledReservations = reservations.filter(r => r.status === 'cancelled');
+  // Group all reservations first, then decide tab per booking
+  const allBookings = groupBookings(reservations);
 
-  const upcomingBookings = groupBookings(confirmedReservations.filter(r => isFuture(r.date)));
-  const pastBookings = groupBookings([
-    ...cancelledReservations,
-    ...confirmedReservations.filter(r => !isFuture(r.date)),
-  ]);
+  const upcomingBookings = allBookings.filter(
+    b => isFuture(b.date) && b.seats.some(s => s.status === 'confirmed')
+  );
+  const pastBookings = allBookings.filter(
+    b => !isFuture(b.date) || b.seats.every(s => s.status === 'cancelled')
+  );
 
   // Keep legacy names for stats row (count individual seat reservations, not bookings)
-  const upcomingReservations = confirmedReservations.filter(r => isFuture(r.date));
-  const pastReservations = [
-    ...cancelledReservations,
-    ...confirmedReservations.filter(r => !isFuture(r.date)),
-  ];
+  const upcomingReservations = reservations.filter(
+    r => r.status === 'confirmed' && isFuture(r.date)
+  );
+  const pastReservations = reservations.filter(
+    r => r.status === 'cancelled' || !isFuture(r.date)
+  );
 
   const displayedBookings = activeTab === 'upcoming' ? upcomingBookings : pastBookings;
 
