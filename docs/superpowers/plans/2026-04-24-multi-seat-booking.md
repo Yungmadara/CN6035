@@ -88,7 +88,7 @@ Expected: file updated, no errors.
 
 Run:
 ```bash
-cd backend && node import-to-railway.js "mysql://root:DkDULinavmlcxLgiTxvMzOODqubNqIjQ@roundhouse.proxy.rlwy.net:43402/railway"
+cd backend && node import-to-railway.js "mysql://USER:PASSWORD@HOST:PORT/railway"
 ```
 
 Expected output:
@@ -104,7 +104,7 @@ Run:
 cd backend && node -e "
 const mysql = require('mysql2/promise');
 (async () => {
-  const url = new URL('mysql://root:DkDULinavmlcxLgiTxvMzOODqubNqIjQ@roundhouse.proxy.rlwy.net:43402/railway');
+  const url = new URL('mysql://USER:PASSWORD@HOST:PORT/railway');
   const conn = await mysql.createConnection({
     host: url.hostname, port: parseInt(url.port),
     user: decodeURIComponent(url.username),
