@@ -31,5 +31,7 @@ web-build/
 build/
 out/
 
-# Claude Code local settings
+# Editor/IDE local settings
 .claude/
+.vscode/
+.idea/
