@@ -1,3 +1,16 @@
+// ============================================================
+//  RegisterScreen — Εγγραφή Νέου Χρήστη
+// ============================================================
+//
+//  Φόρμα 4 πεδίων (όνομα, email, password, confirm password)
+//  με client-side validation πριν το submit. Στο επιτυχές
+//  POST /api/register εμφανίζεται alert και ο user μεταφέρεται
+//  στο LoginScreen για να συνδεθεί.
+//
+//  Δεν κάνουμε auto-login μετά το register — ο user συνδέεται
+//  ρητά για να επιβεβαιώσει credentials.
+// ============================================================
+
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
@@ -6,6 +19,7 @@ import {
 import api from '../services/api';
 
 export default function RegisterScreen({ navigation }) {
+  // Form state
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -13,6 +27,9 @@ export default function RegisterScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
 
   const handleRegister = async () => {
+    // ── Client-side validation (πριν network call) ────────────
+    // Σύνηθες anti-pattern είναι να βασιζόμαστε ΜΟΝΟ σε client validation —
+    // εδώ έχουμε ΚΑΙ server-side validation στο /register endpoint.
     if (!name || !email || !password || !confirmPassword) {
       Alert.alert('Σφάλμα', 'Συμπληρώστε όλα τα πεδία');
       return;
@@ -32,13 +49,16 @@ export default function RegisterScreen({ navigation }) {
 
     setLoading(true);
     try {
+      // POST /api/register → backend κάνει bcrypt hash + INSERT
       await api.post('/register', { name, email, password });
       Alert.alert(
         '✅ Επιτυχής Εγγραφή',
         `Καλώς ήρθατε, ${name}! Ο λογαριασμός σας δημιουργήθηκε.`,
+        // Με το tap στο "Σύνδεση", πάμε στο LoginScreen
         [{ text: 'Σύνδεση', onPress: () => navigation.navigate('Login') }]
       );
     } catch (err) {
+      // 409 αν email υπάρχει, 500 σε άλλο πρόβλημα
       Alert.alert('Σφάλμα', err.response?.data?.message || 'Αποτυχία εγγραφής');
     } finally {
       setLoading(false);

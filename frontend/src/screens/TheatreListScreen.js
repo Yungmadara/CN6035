@@ -1,9 +1,27 @@
+// ============================================================
+//  TheatreListScreen — Αρχική Οθόνη
+// ============================================================
+//
+//  Πρώτη οθόνη μετά το login. Παρέχει:
+//   • Hero banner με χαιρετισμό προς τον user
+//   • Stats row (αριθμός θεάτρων / πόλεων / παραστάσεων)
+//   • Search bar (όνομα ή τοποθεσία θεάτρου)
+//   • Filter chips για είδος (Τραγωδία/Κωμωδία/Αρχαία/Σαίξπηρ)
+//   • Theatre cards με next-show badges
+//   • Pull-to-refresh για ανανέωση από server
+//   • Top buttons: Profile + Logout
+//
+//  useFocusEffect (αντί για useEffect): φορτώνει ξανά τα δεδομένα
+//  κάθε φορά που ο user επιστρέφει σε αυτή την οθόνη — π.χ. μετά
+//  από κράτηση θα δει updated counters.
+// ============================================================
+
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, FlatList, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator, Alert, ScrollView, RefreshControl
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';  // αποφυγή iPhone notch/island
 import { useFocusEffect } from '@react-navigation/native';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';

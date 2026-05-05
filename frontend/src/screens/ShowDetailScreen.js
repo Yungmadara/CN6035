@@ -1,3 +1,20 @@
+// ============================================================
+//  ShowDetailScreen — Λεπτομέρειες Παράστασης + Showtimes
+// ============================================================
+//
+//  Εμφανίζει:
+//   • Στοιχεία παράστασης (τίτλος, περιγραφή με σκηνοθέτη/cast,
+//     διάρκεια, age rating)
+//   • Λίστα διαθέσιμων showtimes (ημ/νία, ώρα, αίθουσα, τιμή)
+//
+//  Tap σε showtime → navigate στο ReservationScreen με τα
+//  παραμέτρους που χρειάζεται για να φέρει τις θέσεις.
+//
+//  Δύο API calls γίνονται σε parallel μέσω Promise.all:
+//   GET /api/shows/:id          (λεπτομέρειες παράστασης)
+//   GET /api/shows/:id/showtimes (showtimes)
+// ============================================================
+
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,

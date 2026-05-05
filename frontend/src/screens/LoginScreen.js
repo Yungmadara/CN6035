@@ -1,3 +1,17 @@
+// ============================================================
+//  LoginScreen — Σύνδεση Χρήστη
+// ============================================================
+//
+//  Φόρμα email + password. Στο submit καλεί POST /api/login,
+//  παίρνει JWT + user object, τα αποθηκεύει μέσω auth context
+//  (που τα γράφει στο secure store), και ο AppNavigator
+//  αυτόματα εμφανίζει τα authenticated screens.
+//
+//  KeyboardAvoidingView: στο iOS, σπρώχνει τη φόρμα προς τα
+//  πάνω όταν εμφανίζεται το πληκτρολόγιο (αλλιώς θα κάλυπτε
+//  το πεδίο password).
+// ============================================================
+
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
@@ -7,21 +21,27 @@ import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 export default function LoginScreen({ navigation }) {
+  // Form state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const [loading, setLoading] = useState(false); // disabled state του κουμπιού όσο τρέχει το request
+  const { login } = useAuth();                    // μέθοδος του AuthContext
 
   const handleLogin = async () => {
+    // Client-side validation πριν κάνουμε network request
     if (!email || !password) {
       Alert.alert('Σφάλμα', 'Συμπληρώστε email και κωδικό');
       return;
     }
     setLoading(true);
     try {
+      // POST /api/login → επιστρέφει { token, user }
       const res = await api.post('/login', { email, password });
+      // Αποθήκευση στο secure store + ενημέρωση global state
+      // (ο AppNavigator παρακολουθεί το user → switch σε authenticated stack)
       await login(res.data.token, res.data.user);
     } catch (err) {
+      // Backend επιστρέφει { message: 'Invalid credentials' } σε αποτυχία
       Alert.alert('Αποτυχία Σύνδεσης', err.response?.data?.message || 'Λάθος email ή κωδικός');
     } finally {
       setLoading(false);

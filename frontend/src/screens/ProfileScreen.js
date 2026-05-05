@@ -1,3 +1,23 @@
+// ============================================================
+//  ProfileScreen — Προφίλ Χρήστη & Κρατήσεις
+// ============================================================
+//
+//  Δείχνει στο logged-in user:
+//   • Avatar + όνομα/email + κουμπί logout
+//   • Stats row (επερχόμενες / παλιότερες / σύνολο)
+//   • Tabs: Επερχόμενες / Ιστορικό
+//   • Λίστα bookings (grouped by reservation_reference)
+//   • Per-seat actions: Αλλαγή θέσης (modal) / Ακύρωση
+//
+//  Grouping logic (στο frontend):
+//   - Backend επιστρέφει ΕΝΑ row ανά seat (όχι ανά booking)
+//   - Εδώ groupάρουμε με κλειδί = reservation_reference
+//     ώστε να εμφανίζεται ένα card ανά booking με όλες τις
+//     θέσεις του (ακόμα κι αν κάποιες έχουν ακυρωθεί)
+//   - Tab placement: αν booking είναι future ΚΑΙ έχει έστω 1
+//     confirmed seat → Επερχόμενες· αλλιώς → Ιστορικό
+// ============================================================
+
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
@@ -41,7 +61,12 @@ export default function ProfileScreen({ navigation }) {
 
   const isFuture = (dateStr) => new Date(dateStr) > new Date();
 
-  // Group reservations by reference (null ref → synthetic group per reservation)
+  // ── Grouping reservations by booking reference ───────────────
+  // Backend επιστρέφει 1 row ανά seat. Εδώ τα μαζεύουμε σε ένα
+  // αντικείμενο ανά booking (ίδιο reservation_reference). Έτσι
+  // ένα booking με 3 θέσεις γίνεται 1 card με 3 seats μέσα του.
+  // Για legacy κρατήσεις χωρίς reference, χρησιμοποιούμε synthetic
+  // key 'single-<reservation_id>' ώστε να μην crash-άρει το grouping.
   const groupBookings = (reservationList) => {
     const groups = {};
     for (const r of reservationList) {
@@ -72,12 +97,17 @@ export default function ProfileScreen({ navigation }) {
     return Object.values(groups);
   };
 
-  // Group all reservations first, then decide tab per booking
+  // Πρώτα groupάρουμε ΟΛΕΣ τις rows σε bookings, μετά αποφασίζουμε
+  // σε ποιο tab ανήκει κάθε booking (όχι κάθε row ξεχωριστά).
+  // Έτσι αποφεύγουμε το split: π.χ. booking με 2 confirmed + 1 cancelled
+  // εμφανίζεται μόνο στις Επερχόμενες, όχι σπασμένο σε δύο tabs.
   const allBookings = groupBookings(reservations);
 
+  // Επερχόμενες: μελλοντική ημ/νία ΚΑΙ τουλάχιστον 1 confirmed seat
   const upcomingBookings = allBookings.filter(
     b => isFuture(b.date) && b.seats.some(s => s.status === 'confirmed')
   );
+  // Ιστορικό: παρελθούσα ημ/νία Ή όλες οι θέσεις cancelled
   const pastBookings = allBookings.filter(
     b => !isFuture(b.date) || b.seats.every(s => s.status === 'cancelled')
   );

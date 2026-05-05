@@ -1,3 +1,22 @@
+// ============================================================
+//  ReservationScreen — Επιλογή Θέσεων & Κράτηση
+// ============================================================
+//
+//  Η πιο σύνθετη οθόνη του app. Επιτρέπει:
+//   • Multi-seat selection (μέχρι 10 θέσεις σε ένα booking)
+//   • Toggle (tap → επιλογή / re-tap → απο-επιλογή)
+//   • Live price breakdown ανά κατηγορία (VIP/Standard/Economy)
+//   • Συνολική τιμή που ενημερώνεται καθώς αλλάζει η επιλογή
+//   • Confirmation alert με όνομα θέσεων + total
+//   • Κλήση POST /api/reservations με array seat_ids
+//   • Στην επιτυχία: εμφάνιση booking reference + nav σε Profile
+//
+//  Λογική θέσεων:
+//   - Διαβάζονται από GET /api/showtimes/:id/seats (144 ανά showtime)
+//   - Ομαδοποιούνται οπτικά σε 3 sections (VIP/Standard/Economy)
+//   - Κάθε section είναι ξεχωριστό FlatList με 12 columns
+// ============================================================
+
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
@@ -49,21 +68,28 @@ export default function ReservationScreen({ route, navigation }) {
     );
   };
 
+  // Στέλνει POST /api/reservations με array seat_ids.
+  // Backend κάνει atomic transaction (FOR UPDATE locks) — αν 2 users
+  // διεκδικούν ίδια θέση, ο ένας θα πάρει 409 και θα δει error.
   const confirmBooking = async () => {
     setBooking(true);
     try {
       const res = await api.post('/reservations', {
         showtime_id: showtimeId,
-        seat_ids: selectedSeats.map(s => s.seat_id),
+        seat_ids: selectedSeats.map(s => s.seat_id), // π.χ. [11, 12, 27]
       });
+      // Server response: { reference: 'BK-...', count: 3, totalPrice: 100 }
       const { reference, count, totalPrice } = res.data;
+      // Καθαρισμός selection ώστε να μη φαίνονται "stale" αν γυρίσει πίσω
       setSelectedSeats([]);
       Alert.alert(
         'Επιτυχία! 🎉',
         `Κρατήθηκαν ${count} θέσεις\nΚωδικός: ${reference}\nΣύνολο: ${formatEuro(totalPrice)}`,
+        // Auto-redirect στο Profile για να δει τη νέα κράτηση
         [{ text: 'OK', onPress: () => navigation.navigate('Profile') }]
       );
     } catch (err) {
+      // Πιθανά errors: 409 (seat taken), 400 (validation), 500
       Alert.alert(
         'Σφάλμα',
         err.response?.data?.error || err.response?.data?.message || err.message || 'Αποτυχία κράτησης'
@@ -82,12 +108,17 @@ export default function ReservationScreen({ route, navigation }) {
     }
   };
 
+  // Toggle επιλογής θέσης. Χρησιμοποιεί την updater form του setState
+  // (prev => newState) ώστε να είναι ασφαλές σε rapid taps —
+  // δεν κάνει stale closure read του selectedSeats.
   const toggleSeat = (seat) => {
     setSelectedSeats(prev => {
       const isSelected = prev.some(s => s.seat_id === seat.seat_id);
       if (isSelected) {
+        // Ήδη επιλεγμένη → αφαίρεση
         return prev.filter(s => s.seat_id !== seat.seat_id);
       }
+      // Έλεγχος ορίου MAX_SEATS πριν την προσθήκη
       if (prev.length >= MAX_SEATS) {
         Alert.alert('Όριο θέσεων', `Μπορείτε να επιλέξετε έως ${MAX_SEATS} θέσεις ανά κράτηση`);
         return prev;

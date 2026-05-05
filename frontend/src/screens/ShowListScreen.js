@@ -1,3 +1,14 @@
+// ============================================================
+//  ShowListScreen — Λίστα Παραστάσεων Θεάτρου
+// ============================================================
+//
+//  Εμφανίζεται όταν ο user επιλέξει θέατρο από το
+//  TheatreListScreen. Καλεί GET /api/shows?theatreId=X για
+//  να φέρει τις παραστάσεις του συγκεκριμένου θεάτρου.
+//
+//  Tap σε παράσταση → navigate στο ShowDetailScreen.
+// ============================================================
+
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, FlatList, TextInput, TouchableOpacity,
